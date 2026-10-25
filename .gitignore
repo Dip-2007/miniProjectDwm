@@ -1,0 +1,18 @@
+# Large datasets
+data/Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv
+data/Monday-WorkingHours.pcap_ISCX.csv
+data/Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv
+data/Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv
+data/merged_traffic.csv
+data/merge_csv.py
+
+# Python generated files
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+.venv/
+
+# Environment variables
+.env
