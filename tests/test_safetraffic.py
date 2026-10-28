@@ -13,7 +13,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.data_loader import generate_demo_dataset, detect_label_column, get_numeric_feature_columns
 from src.preprocessing import preprocess_dataframe, validate_features, get_preprocessing_summary
-from src.clustering import run_kmeans, compute_elbow_data, compute_silhouette, cluster_sizes
+from src.clustering import (
+    run_kmeans, compute_elbow_data, compute_silhouette, cluster_sizes, find_best_k,
+    run_dbscan, estimate_dbscan_eps, dbscan_cluster_summary, compare_clustering_algorithms,
+)
 from src.anomaly_detection import flag_suspicious_records, flag_suspicious_clusters
 from src.evaluation import evaluate_with_labels, unsupervised_evaluation_summary
 
@@ -118,6 +121,7 @@ class TestPreprocessing:
         """Inject inf values and ensure preprocessing removes them."""
         df = generate_demo_dataset(n_samples=100, random_state=99)
         # Inject some infinities
+        df = df.astype({df.columns[0]: 'float64', df.columns[1]: 'float64'})
         df.iloc[0, 0] = np.inf
         df.iloc[1, 1] = -np.inf
         df_clean, df_scaled, _, report = preprocess_dataframe(df, feature_cols)
@@ -163,6 +167,15 @@ class TestClustering:
         sizes = cluster_sizes(labels)
         assert sizes['Size'].sum() == len(df_scaled)
         assert abs(sizes['Percentage'].sum() - 100) < 0.1
+
+    def test_find_best_k(self, preprocessed):
+        _, df_scaled, _, _ = preprocessed
+        best_k, details = find_best_k(df_scaled, k_range=range(2, 7))
+        assert isinstance(best_k, int)
+        assert 2 <= best_k <= 6
+        assert 'inertias' in details
+        assert 'elbow_best_k' in details
+
 
 
 # =====================================================================
@@ -223,3 +236,60 @@ class TestEvaluation:
         assert summary['k'] == 3
         assert summary['silhouette_score'] == 0.45
         assert 'note' in summary
+
+
+# =====================================================================
+# DBSCAN and Comparison Tests
+# =====================================================================
+
+class TestDBSCANAndComparison:
+    def test_dbscan_produces_labels(self, preprocessed):
+        _, df_scaled, _, _ = preprocessed
+        model, labels = run_dbscan(df_scaled, eps=1.0, min_samples=5)
+        assert len(labels) == len(df_scaled)
+        # Should be an ndarray of ints
+        assert isinstance(labels, np.ndarray)
+        assert labels.dtype.kind in ('i', 'u')
+
+    def test_estimate_dbscan_eps(self, preprocessed):
+        _, df_scaled, _, _ = preprocessed
+        rec_eps, k_dists = estimate_dbscan_eps(df_scaled, min_samples=5)
+        assert isinstance(rec_eps, float)
+        assert rec_eps > 0
+        assert len(k_dists) > 0
+        # Distances must be sorted monotonically ascending
+        assert np.all(np.diff(k_dists) >= -1e-9)
+
+    def test_dbscan_cluster_summary(self, preprocessed):
+        _, df_scaled, _, _ = preprocessed
+        _, labels = run_dbscan(df_scaled, eps=1.0, min_samples=5)
+        summary = dbscan_cluster_summary(labels)
+        assert 'n_clusters' in summary
+        assert 'noise_count' in summary
+        assert 'noise_pct' in summary
+        assert 'sizes_df' in summary
+        assert summary['noise_count'] >= 0
+        assert 0.0 <= summary['noise_pct'] <= 100.0
+
+    def test_compare_clustering_algorithms(self, preprocessed, demo_df):
+        df_clean, df_scaled, _, _ = preprocessed
+        _, km_labels = run_kmeans(df_scaled, k=3)
+        _, db_labels = run_dbscan(df_scaled, eps=1.0, min_samples=5)
+
+        label_col = detect_label_column(demo_df)
+        true_labels = df_clean[label_col]
+
+        comp = compare_clustering_algorithms(
+            df_scaled=df_scaled,
+            kmeans_labels=km_labels,
+            dbscan_labels=db_labels,
+            kmeans_outliers_count=15,
+            true_labels=true_labels,
+        )
+
+        assert 'km_k' in comp
+        assert 'db_clusters' in comp
+        assert 'comparison_df' in comp
+        assert comp['km_k'] == 3
+        assert len(comp['comparison_df']) >= 8
+        assert 'Criterion / Metric' in comp['comparison_df'].columns

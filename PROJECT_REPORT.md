@@ -83,23 +83,42 @@ Network security teams face the challenge of analyzing large volumes of network 
 - Range: -1 (poor) to +1 (excellent).
 - Computed on a sample for large datasets.
 
-### 4.5 Suspicious Traffic Identification
+### 4.5 DBSCAN Clustering Algorithm (Comparative Benchmark)
+
+**Algorithm Concepts:**
+1. **Density-based discovery:** Connects core points with dense neighborhoods within radius $\varepsilon$.
+2. **Noise Isolation:** Automatically isolates sparse, low-density data points into a special **Noise Cluster (-1)**.
+3. **No Prior $K$ Required:** Discovers the natural number of clusters directly from spatial density.
+4. **k-Distance Graph:** Automatically determines optimal $\varepsilon$ by identifying the knee/elbow point of sorted $k$-nearest neighbor distances.
+
+### 4.6 Comparative Framework: K-Means vs. DBSCAN
+
+| Dimension | K-Means | DBSCAN |
+|-----------|---------|--------|
+| **Paradigm** | Centroid-based Partitioning | Density-based Spatial Clustering |
+| **Cluster Shape** | Assumes convex, spherical clusters | Discovers arbitrary, non-linear manifolds |
+| **Noise Handling** | None (forces all outliers into clusters) | Natively isolates anomalies as Noise (-1) |
+| **Complexity** | $O(k \cdot n \cdot i)$ (Linear, scalable) | $O(n^2)$ or $O(n \log n)$ (Compute intensive) |
+| **Cybersecurity Fit** | Ideal for high-throughput baseline profiling | Ideal for zero-day attack anomaly detection |
+
+### 4.7 Suspicious Traffic Identification
 
 **Method:** Z-score thresholding (post-clustering)
 - Compute z-score for each feature across all records.
 - Flag records where |z| > threshold (default: 2.5).
 - Categorize as "Needs Investigation" (1–2 flagged features) or "High Priority" (3+ flagged features).
 
-**Key Principle:** K-Means does NOT determine which clusters are attacks. The flagging is a separate, transparent, and configurable heuristic.
+**Key Principle:** K-Means does NOT determine which clusters are attacks. In contrast, DBSCAN natively isolates anomalies directly via density.
 
-### 4.6 Evaluation Against Ground Truth
+### 4.8 Evaluation Against Ground Truth
 
 When true labels (e.g., "BENIGN," "DDoS") are available:
 - **Adjusted Rand Index (ARI):** Measures agreement, adjusted for chance (-1 to 1).
 - **Normalized Mutual Information (NMI):** Measures mutual dependence (0 to 1).
+- **Davies-Bouldin Index:** Evaluates cluster boundary separation (lower is better).
 - **Cross-tabulation:** Cluster vs. true label frequency table.
 
-> Classification accuracy is NOT reported because K-Means is unsupervised and cluster IDs are arbitrary.
+> Classification accuracy is NOT reported because clustering is unsupervised and cluster IDs are arbitrary.
 
 ---
 
@@ -164,23 +183,23 @@ User Interface (Streamlit Dashboard)
 
 ## 7. Conclusion
 
-SafeTraffic demonstrates that K-Means clustering can effectively group network traffic records into meaningful clusters based on their numerical characteristics. The Elbow Method and Silhouette Score provide guidance for selecting the number of clusters. Post-clustering z-score analysis identifies records with statistically unusual feature values that may indicate suspicious activity.
+This project evaluated two distinct unsupervised clustering paradigms for website traffic anomaly detection: **K-Means (Partition-based)** and **DBSCAN (Density-based)**.
 
-However, K-Means has limitations: it assumes spherical clusters, requires manual K selection, and cannot inherently distinguish attacks from benign traffic. The flagging heuristic is a starting point for investigation, not a definitive security verdict.
-
-The project successfully illustrates the application of unsupervised data mining techniques to a real-world cybersecurity problem, making it suitable for academic demonstration of DWM concepts.
+**Key Comparative Findings:**
+1. **Anomaly Purity:** DBSCAN natively detects outliers as low-density **Noise (Cluster -1)**, making it mathematically superior for zero-day anomaly discovery without needing arbitrary post-hoc statistical rules. In contrast, K-Means forces every packet into a cluster, necessitating a secondary z-score heuristic.
+2. **Cluster Geometry:** Network attack patterns (e.g. slowloris, port scans) often form non-spherical manifolds in feature space. While K-Means assumes spherical clusters and equal variance, DBSCAN successfully isolates arbitrary-shaped dense regions.
+3. **Operational Scalability:** K-Means demonstrates $O(k \cdot n \cdot i)$ linear complexity and generates explicit centroids, making it much faster and more practical for massive high-speed network traffic profiling. DBSCAN has $O(n^2)$ computational overhead.
+4. **Final Recommendation:** A **hybrid architecture** is optimal for modern enterprise Intrusion Detection Systems (IDS): use K-Means as an inline fast classifier for high-throughput baseline traffic segmentation, and route suspicious, boundary, or unclassified flows to DBSCAN for density-based anomaly confirmation.
 
 ---
 
 ## 8. Future Scope
 
-1. **DBSCAN Clustering** — Density-based clustering for irregularly shaped attack patterns.
-2. **Automated K Selection** — Gap Statistic or information-theoretic methods.
-3. **Real-Time Monitoring** — Integration with live network capture tools.
-4. **Temporal Analysis** — Time-series clustering for detecting attack sequences.
-5. **Ensemble Methods** — Combining multiple clustering algorithms for robustness.
-6. **Feature Engineering** — Automated feature selection and dimensionality reduction.
-7. **Deep Learning** — Autoencoders for representation learning before clustering.
+1. **Automated Dynamic Parameter Tuning** — Adaptive $\varepsilon$ estimation using OPTICS for varying traffic density regimes.
+2. **Real-Time Stream Monitoring** — Integration with live packet capture tools (e.g., PyShark, Zeek, Suricata).
+3. **Temporal Analysis** — Time-series clustering for detecting multi-stage advanced persistent threats (APTs).
+4. **Deep Representation Learning** — Unsupervised Autoencoders for feature extraction prior to density clustering.
+5. **Distributed Clustering** — Apache Spark implementation for multi-gigabit line-rate network streams.
 
 ---
 
